@@ -243,12 +243,11 @@ def powerset(l):
 
 
 class MFeature:
-    def __init__(self, name, value, is_lex=None, is_cin=None):
+    def __init__(self, name, value, is_lex=None):
         self.name = name
         self.value = value
         self.is_lex = is_lex
-        self.is_cin = is_cin
-        self.tup = (self.name, self.value, self.is_lex, self.is_cin)
+        self.tup = (self.name, self.value, self.is_lex)
 
     def __repr__(self):
         if self.value is None: return ''
@@ -267,7 +266,7 @@ class MFeature:
         return hash((self.tup))
     
     def compatible(self):
-        return MFeature(self.name, self.value, None, None)
+        return MFeature(self.name, self.value, None)
 
 
 class MBundle(tuple):
@@ -282,45 +281,22 @@ class MBundle(tuple):
     
     def compatible(self):
         return(MBundle(map(lambda x: x.compatible(), self)))
-    
-    def cin(self, compatible=False):
-        return MBundle(f.compatible() if compatible else f for f in self if f.is_cin is True)
-
-    def cout(self, compatible=False):
-        return MBundle(f.compatible() if compatible else f for f in self if f.is_cin is False)
 
 
 class SFeature:
-    def __init__(self, type, name, mfeats=None):
+    def __init__(self, type, name, cin=None, cout=None):
         self.type = type
         self.name = name
-        self.mfeats = mfeats
-        self.tup = (self.type, self.name, self.mfeats)
+        self.cin = cin
+        self.cout = cout
+        self.tup = (self.type, self.name, self.cin, self.cout)
     
-    def cin(self, compatible=False):
-        # mb = MBundle(f for f in self.mfeats if f.is_cin is True)
-        # if compatible: mb = mb.compatible()
-        # return mb
-        return self.mfeats.cin(compatible)
-    
-    def cout(self, compatible=False):
-        # mb = MBundle(f for f in self.mfeats if f.is_cin is False)
-        # if compatible: mb = mb.compatible()
-        # return mb
-        return self.mfeats.cout(compatible)
-    
-    def cin_joined(self, compatible=False):
-        return ','.join([f.__repr__() for f in self.cin(compatible)])
-    
-    def cout_joined(self, compatible=False):
-        return ','.join([f.__repr__() for f in self.cout(compatible)])
+    def joined(self, do_cin, compatible=False):
+        return ','.join([(f.compatible() if compatible else f).__repr__() for f in (self.cin if do_cin else self.cout)])
 
     def __repr__(self):
-        if self.mfeats is None:
-            cin_str, cout_str = '', ''
-        else:
-            cin_str = '←[{}]'.format(self.cin_joined())
-            cout_str = '[{}]→'.format(self.cout_joined())
+        cin_str = '' if self.cin is None else '←[{}]'.format(self.joined(do_cin=True))
+        cout_str = '' if self.cout is None else '[{}]→'.format(self.joined(do_cin=False))
         return f'{self.type[0]}{self.name}{self.type[1]}{cin_str}{cout_str}'
     
     def __eq__(self, other):
@@ -336,21 +312,13 @@ class SFeature:
         return hash((self.tup))
     
     def vanilla(self):
-        if self.mfeats is None:
-            fst, snd = '', ''
-        else:
-            cin_str = '_[{}]'.format(self.cin_joined(compatible=True))
-            cout_str = '_[{}]'.format(self.cout_joined(compatible=True))
-            (fst, snd) = (cin_str, cout_str) if is_pos(self) else (cout_str, cin_str)
-        
+        cin_str = '' if self.cin is None else '_[{}]'.format(self.joined(do_cin=True, compatible=True))
+        cout_str = '' if self.cout is None else '_[{}]'.format(self.joined(do_cin=False, compatible=True))
+        (fst, snd) = (cin_str, cout_str) if is_pos(self) else (cout_str, cin_str)
         return SFeature(self.type, f'{self.name}{fst}{snd}', None)
     
     def stripped(self):
-        if self.mfeats is None:
-            return SFeature(self.type, self.name, None)
-        else:
-            return SFeature(self.type, f'{self.name}_', MBundle([]))
-        # return SFeature(self.type, f'{self.name}{"" if self.mfeats is None else "_"}', None)
+        return SFeature(self.type, f'{self.name}', None, None)
 
 
 class SBundle(tuple):
@@ -362,15 +330,14 @@ class SBundle(tuple):
     
     def mor(self):
         d = {}
-        # mfeats_lex = set()
-        for f in reversed(self):
-            if f.mfeats:
-                for mf in f.mfeats:
-                    # if mf.is_lex is True and mf.name not in mfeats_lex:
-                    #     d[mf.name] = mf.value
-                    #     mfeats_lex.add(mf.name)
-                    # elif mf.name not in d:
+        for f in reversed(self): # always go for the last available feature
+            if f.cin: # first choice: receiving channel
+                for mf in f.cin:
                     if mf.name not in d:
+                        d[mf.name] = mf.value
+            if f.cout: # second choice: lexically determined
+                for mf in f.cout:
+                    if mf.is_lex is True and mf.name not in d:
                         d[mf.name] = mf.value
         return MBundle(MFeature(k, v) for k, v in d.items())
     
@@ -416,7 +383,7 @@ class Node():
     def pprint(self, sep="", inherit=""): # pretty-print n-ary tree in preorder
         parent = self.data.__repr__()
         if self.term_below(): # terminal node directly below
-            print("{}╴{}  '{}'".format(sep, parent, self.children[0].__repr__()))
+            print("{}╴{}  {}".format(sep, parent, self.children[0].__repr__()))
         else: # non-terminal node directly below
             print("{}╴{}".format(sep, parent))
             for c in self.children[:-1]: # all children except last
@@ -426,10 +393,10 @@ class Node():
     def __repr__(self):
         return self.data.__repr__()
     
-    def outward(self, visited=None):
+    def outward(self, visited=None): # traverse the entire tree starting with self, first children then parent
         if not visited: visited = []
         visited.append(self)
-        print(self)
+        print(self) # TODO: replace with whatever we actually want to do to each node
         if self.children:
             for c in self.children:
                 if not c in visited:

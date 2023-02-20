@@ -3,22 +3,22 @@
 t;
 
 /lexical items/
-THE :: =n[] d -k[];
-MAN :: n[per:3,num:sg];
-MAN :: n[per:3,num:pl];
-I :: d -k[per:1,num:sg];
-WE :: d -k[per:1,num:pl];
-YOU :: d -k[per:2,num:sg];
-YOU :: d -k[per:2,num:pl];
-SHE :: d -k[per:3,num:sg];
-THEY :: d -k[per:3,num:pl];
-LAUGHING :: =d g;
-KISSING :: =d *k[case:acc] =d g;
-BE.PRS :: =g +k[case:nom] t;
+THE :: +n[] -d -k[];
+MAN :: -n[per:3,num:sg];
+MAN :: -n[per:3,num:pl];
+I :: -d -k[per:1,num:sg];
+WE :: -d -k[per:1,num:pl];
+YOU :: -d -k[per:2,num:sg];
+YOU :: -d -k[per:2,num:pl];
+SHE :: -d -k[per:3,num:sg];
+THEY :: -d -k[per:3,num:pl];
+LAUGHING :: +d -g;
+KISSING :: +d +k[case:acc] +d -g;
+BE.PRS :: +g +k[case:nom] -t;
 
 /quickly make the language infinite/
-KNOW.PRS :: =c =d +k[case:nom] t;
-THAT :: =t c;
+KNOW.PRS :: +c +d +k[case:nom] -t;
+THAT :: +t -c;
 
 /equations/
 THE[] == THE;
